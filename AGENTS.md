@@ -34,6 +34,19 @@ Tech Stack: React 19, TypeScript, Vite (FE) / Bun + TypeScript (BE) / react-live
 - 클라이언트에서 받은 API 키가 `.env` 키보다 항상 우선한다 (`resolveApiKey` 로직 유지)
 - react-live 렌더링용 생성 코드는 plain JavaScript여야 한다 (TypeScript 문법 금지)
 
+## Generator-Evaluator 패턴
+
+TDD 적용 대상 파일을 수정한 후에는 **반드시** evaluator 서브에이전트를 스폰한다.
+
+**트리거 조건** — 다음 파일을 추가하거나 수정한 경우:
+- `src/hooks/**/*.ts`
+- `server/index.ts` (함수 추가·변경 시)
+- 신규 유틸리티 함수 (`stripCodeFences`, `ensureRenderCall`, `resolveApiKey` 등)
+
+**실행 방법**: Agent 도구로 `.claude/skills/evaluator/SKILL.md` 내용을 프롬프트로 전달한다. 변경된 파일 경로를 명시한다. 모델: `sonnet`.
+
+**차단 조건**: evaluator가 FAIL을 반환하면 evaluator가 수정을 완료할 때까지 다음 작업으로 넘어가지 않는다.
+
 ## 커밋 및 브랜치 전략
 
 - Conventional Commits 형식: `feat(scope):`, `fix(scope):`, `chore(scope):`
