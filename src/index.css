@@ -22,6 +22,7 @@ body {
     var(--background);
   color: var(--foreground);
   min-height: 100vh;
+  scroll-behavior: smooth;
 }
 
 button,
