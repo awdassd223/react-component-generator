@@ -594,6 +594,44 @@
   font-weight: 750;
 }
 
+.viewport-controls {
+  display: flex;
+  gap: 4px;
+}
+
+.btn-viewport {
+  height: 28px;
+  padding: 0 10px;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 650;
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.btn-viewport:hover {
+  border-color: var(--line-strong);
+  color: var(--text);
+}
+
+.btn-viewport--active {
+  background: var(--surface-muted);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.preview-viewport-wrapper {
+  display: flex;
+  justify-content: center;
+  overflow-x: auto;
+}
+
 .preview-content {
   padding: 18px;
   background: var(--surface);
