@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "Bash(Start-Sleep -Seconds 5)",
+      "Bash(Get-Content \"C:\\\\Users\\\\MASOCA~1\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-masocampus-Desktop-react-component-generator-main\\\\b16330fe-b09b-4bbe-83ef-37a6837d77a4\\\\tasks\\\\bju3sd297.output\" -Tail 20)",
+      "Bash(git init *)",
+      "Bash(git config *)",
+      "Bash(git add *)"
+    ]
+  }
+}
