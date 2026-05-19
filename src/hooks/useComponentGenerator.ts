@@ -1,5 +1,26 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import type { GeneratedComponent, Provider } from '../types';
+
+const STORAGE_KEY = 'rcg_components';
+
+function loadFromStorage(): GeneratedComponent[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as (Omit<GeneratedComponent, 'createdAt'> & { createdAt: string })[];
+    return parsed.map((c) => ({ ...c, createdAt: new Date(c.createdAt) }));
+  } catch {
+    return [];
+  }
+}
+
+function saveToStorage(components: GeneratedComponent[]) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(components));
+  } catch {
+    // localStorage 용량 초과 또는 사용 불가
+  }
+}
 
 interface UseComponentGeneratorReturn {
   components: GeneratedComponent[];
@@ -11,9 +32,13 @@ interface UseComponentGeneratorReturn {
 }
 
 export function useComponentGenerator(): UseComponentGeneratorReturn {
-  const [components, setComponents] = useState<GeneratedComponent[]>([]);
+  const [components, setComponents] = useState<GeneratedComponent[]>(loadFromStorage);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    saveToStorage(components);
+  }, [components]);
 
   const generate = useCallback(async (prompt: string, apiKey: string | undefined, provider: Provider) => {
     setIsLoading(true);
