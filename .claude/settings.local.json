@@ -12,7 +12,8 @@
       "Bash(gh repo *)",
       "Bash(git remote *)",
       "Bash(git branch *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Skill(update-config)"
     ]
   }
 }
