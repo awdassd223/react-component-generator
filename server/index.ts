@@ -126,6 +126,143 @@ async function callGoogle(prompt: string, apiKey: string): Promise<string> {
   );
 }
 
+async function streamAnthropic(prompt: string, apiKey: string): Promise<ReadableStream<string>> {
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 4096,
+      system: SYSTEM_PROMPT,
+      messages: [{ role: 'user', content: prompt }],
+      stream: true,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Claude API error: ${response.status}`);
+  }
+
+  const reader = response.body!.getReader();
+  const decoder = new TextDecoder();
+
+  return new ReadableStream<string>({
+    async start(controller) {
+      let buffer = '';
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() ?? '';
+
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            const data = line.slice(6);
+            if (data === '[DONE]') {
+              controller.close();
+              return;
+            }
+            try {
+              const parsed = JSON.parse(data) as {
+                type?: string;
+                delta?: { type?: string; text?: string };
+              };
+              if (
+                parsed.type === 'content_block_delta' &&
+                parsed.delta?.type === 'text_delta' &&
+                parsed.delta.text
+              ) {
+                controller.enqueue(parsed.delta.text);
+              }
+            } catch {
+              // ignore malformed SSE lines
+            }
+          }
+        }
+        controller.close();
+      } catch (err) {
+        controller.error(err);
+      }
+    },
+    cancel() {
+      reader.cancel();
+    },
+  });
+}
+
+async function streamGoogle(prompt: string, apiKey: string): Promise<ReadableStream<string>> {
+  const model = 'gemini-2.5-flash';
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?key=${apiKey}&alt=sse`;
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      generationConfig: { maxOutputTokens: 8192 },
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Gemini API error: ${response.status}`);
+  }
+
+  const reader = response.body!.getReader();
+  const decoder = new TextDecoder();
+
+  return new ReadableStream<string>({
+    async start(controller) {
+      let buffer = '';
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() ?? '';
+
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            const data = line.slice(6);
+            try {
+              const parsed = JSON.parse(data) as {
+                candidates?: Array<{
+                  content?: { parts?: Array<{ text?: string }> };
+                  finishReason?: string;
+                }>;
+              };
+              const candidate = parsed.candidates?.[0];
+              if (candidate?.finishReason === 'MAX_TOKENS') {
+                controller.error(new Error('생성된 코드가 너무 길어 잘렸습니다. 더 간단한 컴포넌트를 요청해주세요.'));
+                return;
+              }
+              const text = candidate?.content?.parts?.map((p) => p.text ?? '').join('') ?? '';
+              if (text) controller.enqueue(text);
+            } catch {
+              // ignore malformed SSE lines
+            }
+          }
+        }
+        controller.close();
+      } catch (err) {
+        controller.error(err);
+      }
+    },
+    cancel() {
+      reader.cancel();
+    },
+  });
+}
+
 function stripCodeFences(text: string): string {
   return text
     .replace(/^```(?:jsx|tsx|javascript|typescript)?\n?/gm, '')
@@ -217,6 +354,69 @@ const server = Bun.serve({
           { error: message },
           { status: 500, headers: CORS_HEADERS }
         );
+      }
+    }
+
+    if (req.method === 'POST' && url.pathname === '/api/generate/stream') {
+      try {
+        const { prompt, apiKey, provider = 'anthropic' } = (await req.json()) as {
+          prompt: string;
+          apiKey?: string;
+          provider?: Provider;
+        };
+
+        const resolvedKey = resolveApiKey(provider, apiKey);
+
+        if (!resolvedKey) {
+          return Response.json(
+            { error: `API key is required. Set ${provider === 'anthropic' ? 'ANTHROPIC_API_KEY' : 'GOOGLE_API_KEY'} in .env or enter it manually.` },
+            { status: 400, headers: CORS_HEADERS }
+          );
+        }
+
+        if (!prompt) {
+          return Response.json(
+            { error: 'Prompt is required' },
+            { status: 400, headers: CORS_HEADERS }
+          );
+        }
+
+        const textStream =
+          provider === 'google'
+            ? await streamGoogle(prompt, resolvedKey)
+            : await streamAnthropic(prompt, resolvedKey);
+
+        const encoder = new TextEncoder();
+        const sseStream = new ReadableStream({
+          async start(controller) {
+            const reader = textStream.getReader();
+            try {
+              while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                controller.enqueue(encoder.encode(`data: ${JSON.stringify({ chunk: value })}\n\n`));
+              }
+              controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+            } catch (err) {
+              const message = err instanceof Error ? err.message : 'Unknown error';
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: message })}\n\n`));
+            } finally {
+              controller.close();
+            }
+          },
+        });
+
+        return new Response(sseStream, {
+          headers: {
+            ...CORS_HEADERS,
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+          },
+        });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        return Response.json({ error: message }, { status: 500, headers: CORS_HEADERS });
       }
     }
 

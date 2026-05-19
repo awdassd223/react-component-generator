@@ -688,6 +688,69 @@
   line-height: 1.65;
 }
 
+/* Streaming card */
+
+.streaming-card {
+  border-color: var(--primary-soft);
+  animation: streaming-border 2s ease-in-out infinite;
+  margin-bottom: 18px;
+}
+
+@keyframes streaming-border {
+  0%, 100% { border-color: var(--primary-soft); }
+  50% { border-color: var(--primary); box-shadow: 0 0 0 1px rgba(88, 166, 255, 0.15); }
+}
+
+.streaming-label {
+  display: block;
+  color: var(--primary);
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.streaming-dots {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+.streaming-dots span {
+  width: 7px;
+  height: 7px;
+  background: var(--primary);
+  border-radius: 50%;
+  animation: streaming-dot 1.2s ease-in-out infinite;
+}
+
+.streaming-dots span:nth-child(2) { animation-delay: 0.2s; }
+.streaming-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes streaming-dot {
+  0%, 60%, 100% { transform: scale(0.7); opacity: 0.35; }
+  30% { transform: scale(1.1); opacity: 1; }
+}
+
+.streaming-code-block {
+  min-height: 120px;
+  max-height: 480px;
+  overflow-y: auto;
+}
+
+.streaming-cursor::after {
+  content: '▋';
+  display: inline;
+  color: var(--primary);
+  animation: blink-cursor 0.75s step-end infinite;
+}
+
+@keyframes blink-cursor {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
 @media (max-width: 1080px) {
   .app {
     padding: 18px;
